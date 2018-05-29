@@ -185,7 +185,9 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	e = u.SendMail()
-	fmt.Println(e)
+	if e != nil {
+		fmt.Println(e)
+	}
 
 	w.WriteHeader(http.StatusOK)
 	b, _ := json.Marshal(RegisterResponse{

@@ -174,6 +174,7 @@ func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"username": u.Username,
 		"email":    u.EMail,
+		"userid":   u.ID,
 		"exp":      time.Now().Add(20 * time.Minute).Unix(),
 	})
 

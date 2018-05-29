@@ -72,7 +72,7 @@ func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, e
 			w.WriteHeader(http.StatusInternalServerError)
 			b, _ := json.Marshal(RegisterResponse{
 				Success: false,
-				Error: "user could not be found",
+				Error:   "user could not be found",
 			})
 			w.Write(b)
 			return nil, errors.New("erroohr")
@@ -82,7 +82,7 @@ func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, e
 			w.WriteHeader(http.StatusInternalServerError)
 			b, _ := json.Marshal(RegisterResponse{
 				Success: false,
-				Error: "user not verified",
+				Error:   "user not verified",
 			})
 			w.Write(b)
 			return nil, errors.New("erroohr")
@@ -422,7 +422,12 @@ func ForgotPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	w.WriteHeader(http.StatusOK)
 	user.SendForgotMail()
+	b, _ := json.Marshal(RegisterResponse{
+		Success: true,
+	})
+	w.Write(b)
 }
 
 func ResetPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
@@ -467,7 +472,7 @@ func UpdateAccountEndPoint(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			b, _ := json.Marshal(RegisterResponse{
 				Success: false,
-				Error: "same email",
+				Error:   "same email",
 			})
 			w.Write(b)
 			return

@@ -1,0 +1,10 @@
+build_image:
+  image: docker:git
+  services:
+  - docker:dind
+  script:
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN docker.dhbw.chd.cx
+    - docker build -t docker.dhbw.chd.cx/savood/authbackend .
+    - docker push docker.dhbw.chd.cx/savood/authbackend
+  only:
+    - master

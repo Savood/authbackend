@@ -40,6 +40,10 @@ func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, e
 	key := strings.Split(r.Header.Get("Authorization"), " ")
 	if len(key) != 2 {
 		w.WriteHeader(http.StatusInternalServerError)
+		b, _ := json.Marshal(RegisterResponse{
+			Success: false,
+		})
+		w.Write(b)
 		return nil, errors.New("erroohr")
 	}
 
@@ -55,26 +59,42 @@ func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, e
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Something went wrong"))
+		b, _ := json.Marshal(RegisterResponse{
+			Success: false,
+		})
+		w.Write(b)
 		return nil, err
 	}
 
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		u, e := services.FetchUserById(bson.ObjectIdHex(claims["userid"].(string)))
 		if e != nil {
-			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte("The user could not be found"))
+			w.WriteHeader(http.StatusInternalServerError)
+			b, _ := json.Marshal(RegisterResponse{
+				Success: false,
+				Error: "user could not be found",
+			})
+			w.Write(b)
 			return nil, errors.New("erroohr")
 		}
 
 		if !u.Enabled {
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Not verified"))
+			w.WriteHeader(http.StatusInternalServerError)
+			b, _ := json.Marshal(RegisterResponse{
+				Success: false,
+				Error: "user not verified",
+			})
+			w.Write(b)
 			return nil, errors.New("erroohr")
 		}
 
 		return &u, nil
 	} else {
+		w.WriteHeader(http.StatusInternalServerError)
+		b, _ := json.Marshal(RegisterResponse{
+			Success: false,
+		})
+		w.Write(b)
 		return nil, errors.New("erroohr")
 	}
 }
@@ -333,6 +353,12 @@ func ChangeMailEndPoint(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 
+				if strings.ToLower(u.EMail) == strings.ToLower(email.(string)) {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte("This has already been verified"))
+					return
+				}
+
 				u.EMail = email.(string)
 				services.SaveUser(u)
 
@@ -437,6 +463,14 @@ func UpdateAccountEndPoint(w http.ResponseWriter, r *http.Request) {
 	json.Unmarshal(bytes, accountUpdate)
 
 	if accountUpdate.EMail != nil {
+		if strings.ToLower(user.EMail) == strings.ToLower(*accountUpdate.EMail) {
+			w.WriteHeader(http.StatusInternalServerError)
+			b, _ := json.Marshal(RegisterResponse{
+				Success: false,
+			})
+			w.Write(b)
+			return
+		}
 		user.SendChangeConfirmMail(*accountUpdate.EMail)
 	}
 

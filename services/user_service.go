@@ -154,7 +154,7 @@ func (user *User) DeleteSessions() (error) {
 }
 
 func (user *User) DeleteUser() (error) {
-	err := database.GetDatabase().C("sessions").RemoveId(user.ID)
+	err := database.GetDatabase().C("users").RemoveId(user.ID)
 	return err
 }
 

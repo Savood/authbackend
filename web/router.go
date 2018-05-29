@@ -431,21 +431,11 @@ func ForgotPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func ResetPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
-	user, err := AuthorizeRequest(w, r)
-	if err != nil {
-		return
-	}
-
-	fmt.Println(user)
+	// Implement!
 }
 
 func ResetPasswordPostEndPoint(w http.ResponseWriter, r *http.Request) {
-	user, err := AuthorizeRequest(w, r)
-	if err != nil {
-		return
-	}
-
-	fmt.Println(user)
+	// Implement!
 }
 
 func UpdateAccountEndPoint(w http.ResponseWriter, r *http.Request) {

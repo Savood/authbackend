@@ -464,9 +464,10 @@ func UpdateAccountEndPoint(w http.ResponseWriter, r *http.Request) {
 
 	if accountUpdate.EMail != nil {
 		if strings.ToLower(user.EMail) == strings.ToLower(*accountUpdate.EMail) {
-			w.WriteHeader(http.StatusInternalServerError)
+			w.WriteHeader(http.StatusBadRequest)
 			b, _ := json.Marshal(RegisterResponse{
 				Success: false,
+				Error: "same email",
 			})
 			w.Write(b)
 			return

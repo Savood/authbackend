@@ -36,7 +36,7 @@ func ConnectDatabase() {
 	}
 
 	_, err = channel.QueueDeclare(
-		"send_email", // name
+		"email", // name
 		false,   // durable
 		false,   // delete when unused
 		false,   // exclusive

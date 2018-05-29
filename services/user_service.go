@@ -7,6 +7,9 @@ import (
 	"time"
 	"encoding/json"
 	"github.com/streadway/amqp"
+	"os"
+	"github.com/dgrijalva/jwt-go"
+	"log"
 )
 
 type User struct {
@@ -22,6 +25,12 @@ type Session struct {
 	UserID       bson.ObjectId       `bson:"user_id" json:"user_id"`
 	RefreshToken string              `bson:"refresh_token" json:"refresh_token"`
 	Created      bson.MongoTimestamp `bson:"created" json:"created"`
+}
+
+type EMail struct {
+	To      string `json:"to"`
+	Subject string `json:"subject"`
+	Text    string `json:"text"`
 }
 
 // GenerateRandomBytes returns securely generated random bytes.
@@ -61,6 +70,12 @@ func FetchUserByUsername(username string) (User, error) {
 	return user, err
 }
 
+func FetchUserByEmail(email string) (User, error) {
+	var user User
+	err := database.GetDatabase().C("users").Find(bson.M{"email": email}).One(&user)
+	return user, err
+}
+
 func FetchUserById(id bson.ObjectId) (User, error) {
 	var user User
 	err := database.GetDatabase().C("users").FindId(id).One(&user)
@@ -74,6 +89,11 @@ func (session *Session) FetchUser() (User, error) {
 }
 
 func SaveUser(user User) error {
+	_, err := database.GetDatabase().C("users").UpsertId(user.ID, user)
+	return err
+}
+
+func (user *User) SaveUser() error {
 	_, err := database.GetDatabase().C("users").UpsertId(user.ID, user)
 	return err
 }
@@ -110,19 +130,91 @@ func FetchSessionByRefreshToken(refreshToken string) (Session, error) {
 	return session, err
 }
 
-func (user *User) SendMail() (error) {
-	bb, e := json.Marshal(user)
+func (email *EMail) SendMail() (error) {
+	bb, e := json.Marshal(email)
 	if e != nil {
 		return e
 	}
+
 	e = database.GetMessageQueue().Publish(
-		"",         // exchange
-		"new_user", // routing key
-		false,      // mandatory
-		false,      // immediate
+		"",      // exchange
+		"email", // routing key
+		false,   // mandatory
+		false,   // immediate
 		amqp.Publishing{
 			ContentType: "text/plain",
 			Body:        []byte(bb),
 		})
 	return e
+}
+
+func (user *User) DeleteSessions() (error) {
+	_, err := database.GetDatabase().C("sessions").RemoveAll(bson.M{"user_id": user.ID})
+	return err
+}
+
+func (user *User) DeleteUser() (error) {
+	err := database.GetDatabase().C("sessions").RemoveId(user.ID)
+	return err
+}
+
+func (user *User) SendChangeConfirmMail(newemail string) (error) {
+	emailToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"userid": user.ID.Hex(),
+		"email":  newemail,
+		"exp":    time.Now().Add(60 * time.Minute).Unix(),
+	})
+
+	emailTokenString, e := emailToken.SignedString([]byte(os.Getenv("SECRET_EMAIL")))
+	if e != nil {
+		log.Println(e)
+		return e
+	}
+
+	email := EMail{
+		Subject: "Bestätige deine neue Savood E-Mail!",
+		Text:    "Bitte bestätige deine neue Savood E-Mail: " + os.Getenv("EXTERNAL_BASE") + "/changemail?key=" + emailTokenString,
+		To:      newemail,
+	}
+	return email.SendMail()
+}
+
+func (user *User) SendConfirmMail() (error) {
+	emailToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"userid": user.ID.Hex(),
+		"exp":    time.Now().Add(60 * time.Minute).Unix(),
+	})
+
+	emailTokenString, e := emailToken.SignedString([]byte(os.Getenv("SECRET_EMAIL")))
+	if e != nil {
+		log.Println(e)
+		return e
+	}
+
+	email := EMail{
+		Subject: "Bestätige deinen Savood Account!",
+		Text:    "Bitte bestätige deinen Account: " + os.Getenv("EXTERNAL_BASE") + "/confirm?key=" + emailTokenString,
+		To:      user.EMail,
+	}
+	return email.SendMail()
+}
+
+func (user *User) SendForgotMail() (error) {
+	emailToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"userid": user.ID.Hex(),
+		"exp":    time.Now().Add(60 * time.Minute).Unix(),
+	})
+
+	emailTokenString, e := emailToken.SignedString([]byte(os.Getenv("SECRET_EMAIL")))
+	if e != nil {
+		log.Println(e)
+		return e
+	}
+
+	email := EMail{
+		Subject: "Savood: Password vergessen",
+		Text:    "Jemand hat ein neues Passwort angefordert. Klicke diesen Link, falls du es ändern möchtest: " + os.Getenv("EXTERNAL_BASE") + "/forgot?key=" + emailTokenString,
+		To:      user.EMail,
+	}
+	return email.SendMail()
 }

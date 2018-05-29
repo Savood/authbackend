@@ -13,6 +13,8 @@ import (
 	"encoding/json"
 	"strings"
 	"os"
+	"errors"
+	"io/ioutil"
 )
 
 type ErrorResponse struct {
@@ -27,6 +29,54 @@ type TokenResponse struct {
 type RegisterResponse struct {
 	Success bool   `json:"success"`
 	Error   string `json:"error,omitempty"`
+}
+
+type AccountUpdate struct {
+	EMail    *string `json:"email"`
+	Password *string `json:"password"`
+}
+
+func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, error) {
+	key := strings.Split(r.Header.Get("Authorization"), " ")
+	if len(key) != 2 {
+		w.WriteHeader(http.StatusInternalServerError)
+		return nil, errors.New("erroohr")
+	}
+
+	token, err := jwt.Parse(key[1], func(token *jwt.Token) (interface{}, error) {
+		// Don't forget to validate the alg is what you expect:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+
+		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
+		return []byte(os.Getenv("SECRET_JWT")), nil
+	})
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Something went wrong"))
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		u, e := services.FetchUserById(bson.ObjectIdHex(claims["userid"].(string)))
+		if e != nil {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte("The user could not be found"))
+			return nil, errors.New("erroohr")
+		}
+
+		if !u.Enabled {
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("Not verified"))
+			return nil, errors.New("erroohr")
+		}
+
+		return &u, nil
+	} else {
+		return nil, errors.New("erroohr")
+	}
 }
 
 func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
@@ -184,7 +234,7 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	e = u.SendMail()
+	e = u.SendConfirmMail()
 	if e != nil {
 		fmt.Println(e)
 	}
@@ -243,12 +293,190 @@ func ConfirmEndPoint(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Your account has been verified successfully"))
 }
 
+func ChangeMailEndPoint(w http.ResponseWriter, r *http.Request) {
+	key, ok := r.URL.Query()["key"]
+	if !ok || len(key) < 1 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	token, err := jwt.Parse(key[0], func(token *jwt.Token) (interface{}, error) {
+		// Don't forget to validate the alg is what you expect:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+
+		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
+		return []byte(os.Getenv("SECRET_EMAIL")), nil
+	})
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Something went wrong"))
+		return
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		if userid, ok := claims["userid"]; ok {
+			if email, ok := claims["email"]; ok {
+				u, e := services.FetchUserById(bson.ObjectIdHex(userid.(string)))
+				if e != nil {
+					w.WriteHeader(http.StatusNotFound)
+					w.Write([]byte("The user could not be found"))
+					return
+				}
+
+				if !u.Enabled {
+					w.WriteHeader(http.StatusOK)
+					w.Write([]byte("Not verified"))
+					return
+				}
+
+				u.EMail = email.(string)
+				services.SaveUser(u)
+
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte("Your email has been verified successfully"))
+				return
+			}
+		}
+	} else {
+		fmt.Println(err)
+	}
+
+	w.WriteHeader(http.StatusInternalServerError)
+	w.Write([]byte("Something went wrong"))
+}
+
+func DeleteAccountEndPoint(w http.ResponseWriter, r *http.Request) {
+	user, err := AuthorizeRequest(w, r)
+	if err != nil {
+		return
+	}
+
+	err = user.DeleteUser()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("internal server error"))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("User has been removed"))
+}
+
+func DeleteSessionsEndPoint(w http.ResponseWriter, r *http.Request) {
+	user, err := AuthorizeRequest(w, r)
+	if err != nil {
+		return
+	}
+
+	err = user.DeleteSessions()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("internal server error"))
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("All sessions have been removed"))
+}
+
+func ForgotPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
+	email := r.FormValue("email")
+
+	user, err := services.FetchUserByEmail(email)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		b, _ := json.Marshal(ErrorResponse{
+			Error: "user could not be found",
+		})
+		w.Write(b)
+		return
+	}
+
+	user.SendForgotMail()
+}
+
+func ResetPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
+	user, err := AuthorizeRequest(w, r)
+	if err != nil {
+		return
+	}
+
+	fmt.Println(user)
+}
+
+func ResetPasswordPostEndPoint(w http.ResponseWriter, r *http.Request) {
+	user, err := AuthorizeRequest(w, r)
+	if err != nil {
+		return
+	}
+
+	fmt.Println(user)
+}
+
+func UpdateAccountEndPoint(w http.ResponseWriter, r *http.Request) {
+	user, err := AuthorizeRequest(w, r)
+	if err != nil {
+		return
+	}
+
+	bytes, e := ioutil.ReadAll(r.Body)
+	if e != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		b, _ := json.Marshal(RegisterResponse{
+			Success: false,
+		})
+		w.Write(b)
+		return
+	}
+
+	accountUpdate := &AccountUpdate{}
+	json.Unmarshal(bytes, accountUpdate)
+
+	if accountUpdate.EMail != nil {
+		user.SendChangeConfirmMail(*accountUpdate.EMail)
+	}
+
+	if accountUpdate.Password != nil {
+		hashedPassword, e := bcrypt.GenerateFromPassword([]byte(*accountUpdate.Password), 10)
+		if e != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			b, _ := json.Marshal(RegisterResponse{
+				Success: false,
+			})
+			w.Write(b)
+			return
+		}
+		user.Password = base64.StdEncoding.EncodeToString(hashedPassword)
+		user.SaveUser()
+	}
+
+	w.WriteHeader(http.StatusOK)
+	b, _ := json.Marshal(RegisterResponse{
+		Success: true,
+	})
+	w.Write(b)
+}
+
 func NewRouter() *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
 
 	router.HandleFunc("/oauth2/token", TokenEndPoint).Methods("POST")
 	router.HandleFunc("/register", RegisterEndPoint).Methods("POST")
 	router.HandleFunc("/confirm", ConfirmEndPoint).Methods("GET")
+	router.HandleFunc("/changemail", ChangeMailEndPoint).Methods("GET")
+
+	router.HandleFunc("/account", UpdateAccountEndPoint).Methods("PATCH")
+
+	router.HandleFunc("/account", DeleteAccountEndPoint).Methods("DELETE")
+	router.HandleFunc("/sessions", DeleteSessionsEndPoint).Methods("DELETE")
+
+	router.HandleFunc("/forgot", ForgotPasswordEndPoint).Methods("POST")
+
+	router.HandleFunc("/reset", ResetPasswordEndPoint).Methods("GET")
+	router.HandleFunc("/reset", ResetPasswordPostEndPoint).Methods("POST")
 
 	return router
 }

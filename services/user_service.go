@@ -5,11 +5,8 @@ import (
 	"git.dhbw.chd.cx/savood/authbackend/database"
 	"crypto/rand"
 	"time"
-	"github.com/dgrijalva/jwt-go"
-	"net/smtp"
-	"os"
-	"strings"
-	"fmt"
+	"encoding/json"
+	"github.com/streadway/amqp"
 )
 
 type User struct {
@@ -114,25 +111,18 @@ func FetchSessionByRefreshToken(refreshToken string) (Session, error) {
 }
 
 func (user *User) SendMail() (error) {
-	emailToken := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"userid": user.ID.Hex(),
-		"exp":    time.Now().Add(60 * time.Minute).Unix(),
-	})
-
-	emailTokenString, e := emailToken.SignedString([]byte(os.Getenv("SECRET_EMAIL")))
+	bb, e := json.Marshal(user)
 	if e != nil {
 		return e
 	}
-
-	auth := smtp.PlainAuth("", os.Getenv("SMTP_USER"), os.Getenv("SMTP_PASS"), strings.Split(os.Getenv("SMTP_HOST"), ":")[0])
-
-	to := []string{user.EMail}
-	msg := []byte("From: savood@chd.cx\r\n" +
-		"To: " + user.EMail + "\r\n" +
-		"Subject: Bestätige deinen Savood Account!\r\n" +
-		"\r\n" +
-		"Bitte bestätige deinen Account: " + os.Getenv("EXTERNAL_BASE") + "/confirm?key=" + emailTokenString + "\r\n")
-	err := smtp.SendMail(os.Getenv("SMTP_HOST"), auth, "savood@chd.cx", to, msg)
-	fmt.Println(err)
-	return err
+	e = database.GetMessageQueue().Publish(
+		"",         // exchange
+		"new_user", // routing key
+		false,      // mandatory
+		false,      // immediate
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        []byte(bb),
+		})
+	return e
 }

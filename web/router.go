@@ -38,6 +38,13 @@ type AccountUpdate struct {
 	Password *string `json:"password"`
 }
 
+func ShowStatusPage(w http.ResponseWriter, text string) {
+	t, _ := template.ParseFiles("templates/status_page.html")
+	t.Execute(w, map[string]string{
+		"Text": text,
+	})
+}
+
 func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, error) {
 	key := strings.Split(r.Header.Get("Authorization"), " ")
 	if len(key) != 2 {
@@ -328,7 +335,7 @@ func ConfirmEndPoint(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Something went wrong"))
+		ShowStatusPage(w, "Something went wrong")
 		return
 	}
 
@@ -336,13 +343,13 @@ func ConfirmEndPoint(w http.ResponseWriter, r *http.Request) {
 		u, e := services.FetchUserById(bson.ObjectIdHex(claims["userid"].(string)))
 		if e != nil {
 			w.WriteHeader(http.StatusNotFound)
-			w.Write([]byte("The user could not be found"))
+			ShowStatusPage(w, "The user could not be found")
 			return
 		}
 
 		if u.Enabled {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("Already verified"))
+			ShowStatusPage(w, "Already verified")
 			return
 		}
 
@@ -353,7 +360,7 @@ func ConfirmEndPoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("Your account has been verified successfully"))
+	ShowStatusPage(w, "Your account has been verified successfully")
 }
 
 func ChangeMailEndPoint(w http.ResponseWriter, r *http.Request) {
@@ -375,7 +382,7 @@ func ChangeMailEndPoint(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Something went wrong"))
+		ShowStatusPage(w, "Something went wrong")
 		return
 	}
 
@@ -385,19 +392,19 @@ func ChangeMailEndPoint(w http.ResponseWriter, r *http.Request) {
 				u, e := services.FetchUserById(bson.ObjectIdHex(userid.(string)))
 				if e != nil {
 					w.WriteHeader(http.StatusNotFound)
-					w.Write([]byte("The user could not be found"))
+					ShowStatusPage(w, "The user could not be found")
 					return
 				}
 
 				if !u.Enabled {
 					w.WriteHeader(http.StatusOK)
-					w.Write([]byte("Not verified"))
+					ShowStatusPage(w, "Not verified")
 					return
 				}
 
 				if strings.ToLower(u.EMail) == strings.ToLower(email.(string)) {
 					w.WriteHeader(http.StatusOK)
-					w.Write([]byte("This has already been verified"))
+					ShowStatusPage(w, "This has already been verified")
 					return
 				}
 
@@ -405,7 +412,7 @@ func ChangeMailEndPoint(w http.ResponseWriter, r *http.Request) {
 				services.SaveUser(u)
 
 				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("Your email has been verified successfully"))
+				ShowStatusPage(w, "Your email has been verified successfully")
 				return
 			}
 		}
@@ -414,7 +421,7 @@ func ChangeMailEndPoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusInternalServerError)
-	w.Write([]byte("Something went wrong"))
+	ShowStatusPage(w, "Something went wrong")
 }
 
 func DeleteAccountEndPoint(w http.ResponseWriter, r *http.Request) {
@@ -491,7 +498,7 @@ func ResetPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Something went wrong"))
+		ShowStatusPage(w, "Something went wrong")
 		return
 	}
 
@@ -505,7 +512,7 @@ func ResetPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 	w.WriteHeader(http.StatusUnauthorized)
-	w.Write([]byte("Something went wrong"))
+	ShowStatusPage(w, "Something went wrong")
 	return
 }
 
@@ -516,21 +523,13 @@ func ResetPasswordPostEndPoint(w http.ResponseWriter, r *http.Request) {
 
 	if len(password) < 4 {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		b, _ := json.Marshal(RegisterResponse{
-			Success: false,
-			Error:   "password at least 4 chars",
-		})
-		w.Write(b)
+		ShowStatusPage(w, "Password should have at least 4 characters")
 		return
 	}
 
 	if password != password2 {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		b, _ := json.Marshal(RegisterResponse{
-			Success: false,
-			Error:   "password not the same",
-		})
-		w.Write(b)
+		ShowStatusPage(w, "Passwords are not identical")
 		return
 	}
 
@@ -546,7 +545,7 @@ func ResetPasswordPostEndPoint(w http.ResponseWriter, r *http.Request) {
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("Something went wrong"))
+		ShowStatusPage(w, "Something went wrong")
 		return
 	}
 
@@ -567,8 +566,8 @@ func ResetPasswordPostEndPoint(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(err)
 	}
 
-	w.WriteHeader(http.StatusInternalServerError)
-	w.Write([]byte("Success!"))
+	w.WriteHeader(http.StatusOK)
+	ShowStatusPage(w, "Success")
 	return
 }
 

@@ -15,6 +15,7 @@ import (
 	"os"
 	"errors"
 	"io/ioutil"
+	"github.com/badoux/checkmail"
 )
 
 type ErrorResponse struct {
@@ -218,6 +219,42 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
 	username := r.FormValue("username")
 	password := r.FormValue("password")
+
+	if len(email) == 0 {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		b, _ := json.Marshal(RegisterResponse{
+			Success: false,
+			Error:   "no email",
+		})
+		w.Write(b)
+	}
+
+	if len(username) < 3 {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		b, _ := json.Marshal(RegisterResponse{
+			Success: false,
+			Error:   "username at least 3 chars",
+		})
+		w.Write(b)
+	}
+
+	if len(password) < 4 {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		b, _ := json.Marshal(RegisterResponse{
+			Success: false,
+			Error:   "password at least 4 chars",
+		})
+		w.Write(b)
+	}
+
+	if checkmail.ValidateFormat(email) != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		b, _ := json.Marshal(RegisterResponse{
+			Success: false,
+			Error:   "email has wrong format",
+		})
+		w.Write(b)
+	}
 
 	hashedPassword, e := bcrypt.GenerateFromPassword([]byte(password), 10)
 	if e != nil {

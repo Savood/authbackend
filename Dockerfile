@@ -14,6 +14,7 @@ FROM alpine:latest
 
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /go/bin/authbackend /usr/local/bin/
+COPY templates /opt/authbackend/templates
 
 WORKDIR /opt/authbackend
 

@@ -16,6 +16,7 @@ import (
 	"errors"
 	"io/ioutil"
 	"github.com/badoux/checkmail"
+	"html/template"
 )
 
 type ErrorResponse struct {
@@ -472,11 +473,105 @@ func ForgotPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
 }
 
 func ResetPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
-	// Implement!
+	key, ok := r.URL.Query()["key"]
+	if !ok || len(key) < 1 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	token, err := jwt.Parse(key[0], func(token *jwt.Token) (interface{}, error) {
+		// Don't forget to validate the alg is what you expect:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+
+		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
+		return []byte(os.Getenv("SECRET_EMAIL")), nil
+	})
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Something went wrong"))
+		return
+	}
+
+	if _, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		t, _ := template.ParseFiles("templates/reset_password.html")
+		t.Execute(w, nil)
+		return
+	} else {
+		fmt.Println(err)
+	}
+	w.WriteHeader(http.StatusUnauthorized)
+	w.Write([]byte("Something went wrong"))
+	return
 }
 
 func ResetPasswordPostEndPoint(w http.ResponseWriter, r *http.Request) {
-	// Implement!
+	password := r.FormValue("password")
+	password2 := r.FormValue("password2")
+	key, ok := r.URL.Query()["key"]
+	if !ok || len(key) < 1 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if len(password) < 4 {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		b, _ := json.Marshal(RegisterResponse{
+			Success: false,
+			Error:   "password at least 4 chars",
+		})
+		w.Write(b)
+		return
+	}
+
+	if password != password2 {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		b, _ := json.Marshal(RegisterResponse{
+			Success: false,
+			Error:   "password not the same",
+		})
+		w.Write(b)
+		return
+	}
+
+	token, err := jwt.Parse(key[0], func(token *jwt.Token) (interface{}, error) {
+		// Don't forget to validate the alg is what you expect:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+
+		// hmacSampleSecret is a []byte containing your secret, e.g. []byte("my_secret_key")
+		return []byte(os.Getenv("SECRET_EMAIL")), nil
+	})
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Something went wrong"))
+		return
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		u, e := services.FetchUserById(bson.ObjectIdHex(claims["userid"].(string)))
+		hashedPassword, e := bcrypt.GenerateFromPassword([]byte(password), 10)
+		if e != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			b, _ := json.Marshal(RegisterResponse{
+				Success: false,
+			})
+			w.Write(b)
+			return
+		}
+		u.Password = base64.StdEncoding.EncodeToString(hashedPassword)
+		u.SaveUser()
+	} else {
+		fmt.Println(err)
+	}
+
+	w.WriteHeader(http.StatusInternalServerError)
+	w.Write([]byte("Success!"))
+	return
 }
 
 func UpdateAccountEndPoint(w http.ResponseWriter, r *http.Request) {

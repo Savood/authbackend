@@ -213,7 +213,7 @@ func (user *User) SendForgotMail() (error) {
 
 	email := EMail{
 		Subject: "Savood: Password vergessen",
-		Text:    "Jemand hat ein neues Passwort angefordert. Klicke diesen Link, falls du es ändern möchtest: " + os.Getenv("EXTERNAL_BASE") + "/forgot?key=" + emailTokenString,
+		Text:    "Jemand hat ein neues Passwort angefordert. Klicke diesen Link, falls du es ändern möchtest: " + os.Getenv("EXTERNAL_BASE") + "/reset?key=" + emailTokenString,
 		To:      user.EMail,
 	}
 	return email.SendMail()

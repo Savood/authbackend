@@ -497,7 +497,9 @@ func ResetPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
 
 	if _, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		t, _ := template.ParseFiles("templates/reset_password.html")
-		t.Execute(w, nil)
+		t.Execute(w, map[string]string{
+			"Key": key[0],
+		})
 		return
 	} else {
 		fmt.Println(err)
@@ -510,11 +512,7 @@ func ResetPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
 func ResetPasswordPostEndPoint(w http.ResponseWriter, r *http.Request) {
 	password := r.FormValue("password")
 	password2 := r.FormValue("password2")
-	key, ok := r.URL.Query()["key"]
-	if !ok || len(key) < 1 {
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+	key := r.FormValue("key")
 
 	if len(password) < 4 {
 		w.WriteHeader(http.StatusUnprocessableEntity)
@@ -536,7 +534,7 @@ func ResetPasswordPostEndPoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := jwt.Parse(key[0], func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(key, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])

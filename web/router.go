@@ -227,6 +227,7 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 			Error:   "no email",
 		})
 		w.Write(b)
+		return
 	}
 
 	if len(username) < 3 {
@@ -236,6 +237,7 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 			Error:   "username at least 3 chars",
 		})
 		w.Write(b)
+		return
 	}
 
 	if len(password) < 4 {
@@ -245,6 +247,7 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 			Error:   "password at least 4 chars",
 		})
 		w.Write(b)
+		return
 	}
 
 	if checkmail.ValidateFormat(email) != nil {
@@ -254,6 +257,7 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 			Error:   "email has wrong format",
 		})
 		w.Write(b)
+		return
 	}
 
 	hashedPassword, e := bcrypt.GenerateFromPassword([]byte(password), 10)

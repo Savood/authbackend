@@ -116,7 +116,7 @@ func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, e
 }
 
 func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
-	email := r.FormValue("email")
+	email := r.FormValue("username")
 	password := r.FormValue("password")
 	grantType := r.FormValue("grant_type")
 

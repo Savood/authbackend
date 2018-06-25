@@ -15,7 +15,6 @@ import (
 type User struct {
 	ID       bson.ObjectId `bson:"_id" json:"id"`
 	EMail    string        `bson:"email" json:"email"`
-	Username string        `bson:"username" json:"username"`
 	Password string        `bson:"password" json:"password"`
 	Enabled  bool          `bson:"enabled" json:"enabled"`
 }
@@ -62,12 +61,6 @@ func GenerateRandomString(n int) (string, error) {
 		bytes[i] = letters[b%byte(len(letters))]
 	}
 	return string(bytes), nil
-}
-
-func FetchUserByUsername(username string) (User, error) {
-	var user User
-	err := database.GetDatabase().C("users").Find(bson.M{"username": username}).One(&user)
-	return user, err
 }
 
 func FetchUserByEmail(email string) (User, error) {

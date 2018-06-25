@@ -21,6 +21,7 @@ import (
 
 type ErrorResponse struct {
 	Error string `json:"error"`
+	Short string `json:"short_error"`
 }
 
 type TokenResponse struct {
@@ -31,6 +32,7 @@ type TokenResponse struct {
 type RegisterResponse struct {
 	Success bool   `json:"success"`
 	Error   string `json:"error,omitempty"`
+	Short   string `json:"short_error,omitempty"`
 }
 
 type AccountUpdate struct {
@@ -51,6 +53,7 @@ func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, e
 		w.WriteHeader(http.StatusInternalServerError)
 		b, _ := json.Marshal(RegisterResponse{
 			Success: false,
+			Short:   "GENERAL_ERROR",
 		})
 		w.Write(b)
 		return nil, errors.New("erroohr")
@@ -70,6 +73,7 @@ func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, e
 		w.WriteHeader(http.StatusInternalServerError)
 		b, _ := json.Marshal(RegisterResponse{
 			Success: false,
+			Short:   "GENERAL_ERROR",
 		})
 		w.Write(b)
 		return nil, err
@@ -82,6 +86,7 @@ func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, e
 			b, _ := json.Marshal(RegisterResponse{
 				Success: false,
 				Error:   "user could not be found",
+				Short:   "USER_NOT_FOUND",
 			})
 			w.Write(b)
 			return nil, errors.New("erroohr")
@@ -92,6 +97,7 @@ func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, e
 			b, _ := json.Marshal(RegisterResponse{
 				Success: false,
 				Error:   "user not verified",
+				Short:   "USER_NOT_ENABLED",
 			})
 			w.Write(b)
 			return nil, errors.New("erroohr")
@@ -102,6 +108,7 @@ func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, e
 		w.WriteHeader(http.StatusInternalServerError)
 		b, _ := json.Marshal(RegisterResponse{
 			Success: false,
+			Short:   "GENERAL_ERROR",
 		})
 		w.Write(b)
 		return nil, errors.New("erroohr")
@@ -109,7 +116,7 @@ func AuthorizeRequest(w http.ResponseWriter, r *http.Request) (*services.User, e
 }
 
 func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
-	username := r.FormValue("username")
+	email := r.FormValue("email")
 	password := r.FormValue("password")
 	grantType := r.FormValue("grant_type")
 
@@ -117,11 +124,12 @@ func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
 	var s *services.Session = nil
 
 	if grantType == "password" {
-		user, err := services.FetchUserByUsername(username)
+		user, err := services.FetchUserByEmail(email)
 		if err != nil {
 			w.WriteHeader(http.StatusNotFound)
 			b, _ := json.Marshal(ErrorResponse{
 				Error: "user could not be found",
+				Short: "USER_NOT_FOUND",
 			})
 			w.Write(b)
 			return
@@ -132,6 +140,7 @@ func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			b, _ := json.Marshal(ErrorResponse{
 				Error: "internal server error",
+				Short: "GENERAL_ERROR",
 			})
 			w.Write(b)
 			return
@@ -142,6 +151,7 @@ func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 			b, _ := json.Marshal(ErrorResponse{
 				Error: "wrong password",
+				Short: "WRONG_PASSWORD",
 			})
 			w.Write(b)
 			return
@@ -151,6 +161,7 @@ func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 			b, _ := json.Marshal(ErrorResponse{
 				Error: "user is not enabled",
+				Short: "USER_NOT_ENABLED",
 			})
 			w.Write(b)
 			return
@@ -161,6 +172,7 @@ func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			b, _ := json.Marshal(ErrorResponse{
 				Error: "internal server error",
+				Short: "GENERAL_ERROR",
 			})
 			w.Write(b)
 			return
@@ -175,6 +187,7 @@ func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 			b, _ := json.Marshal(ErrorResponse{
 				Error: "wrong refresh_token",
+				Short: "WRONG_REFRESH_TOKEN",
 			})
 			w.Write(b)
 			return
@@ -185,6 +198,7 @@ func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 			b, _ := json.Marshal(ErrorResponse{
 				Error: "user could not be found",
+				Short: "USER_NOT_FOUND",
 			})
 			w.Write(b)
 			return
@@ -195,16 +209,16 @@ func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		b, _ := json.Marshal(ErrorResponse{
 			Error: "wrong grant_type",
+			Short: "WRONG_GRANT_TYPE",
 		})
 		w.Write(b)
 		return
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"username": u.Username,
-		"email":    u.EMail,
-		"userid":   u.ID,
-		"exp":      time.Now().Add(20 * time.Minute).Unix(),
+		"email":  u.EMail,
+		"userid": u.ID,
+		"exp":    time.Now().Add(20 * time.Minute).Unix(),
 	})
 
 	tokenString, e := token.SignedString([]byte(os.Getenv("SECRET_JWT")))
@@ -212,6 +226,7 @@ func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		b, _ := json.Marshal(ErrorResponse{
 			Error: "internal server error",
+			Short: "GENERAL_ERROR",
 		})
 		w.Write(b)
 		return
@@ -225,7 +240,6 @@ func TokenEndPoint(w http.ResponseWriter, r *http.Request) {
 
 func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 	email := r.FormValue("email")
-	username := r.FormValue("username")
 	password := r.FormValue("password")
 
 	if len(email) == 0 {
@@ -233,16 +247,7 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 		b, _ := json.Marshal(RegisterResponse{
 			Success: false,
 			Error:   "no email",
-		})
-		w.Write(b)
-		return
-	}
-
-	if len(username) < 3 {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		b, _ := json.Marshal(RegisterResponse{
-			Success: false,
-			Error:   "username at least 3 chars",
+			Short:   "MISSING_EMAIL",
 		})
 		w.Write(b)
 		return
@@ -253,6 +258,7 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 		b, _ := json.Marshal(RegisterResponse{
 			Success: false,
 			Error:   "password at least 4 chars",
+			Short:   "PASSWORD_TOO_SHORT",
 		})
 		w.Write(b)
 		return
@@ -263,6 +269,7 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 		b, _ := json.Marshal(RegisterResponse{
 			Success: false,
 			Error:   "email has wrong format",
+			Short:   "EMAIL_WRONG_FORMAT",
 		})
 		w.Write(b)
 		return
@@ -273,6 +280,7 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		b, _ := json.Marshal(RegisterResponse{
 			Success: false,
+			Short:   "GENERAL_ERROR",
 		})
 		w.Write(b)
 		return
@@ -281,7 +289,6 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 	u := services.User{
 		ID:       bson.NewObjectId(),
 		EMail:    email,
-		Username: username,
 		Password: base64.StdEncoding.EncodeToString(hashedPassword),
 	}
 
@@ -291,7 +298,8 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			b, _ := json.Marshal(RegisterResponse{
 				Success: false,
-				Error:   "the username or email are already in use",
+				Error:   "the email is already in use",
+				Short:   "ALREADY_IN_USE",
 			})
 			w.Write(b)
 			return
@@ -299,6 +307,7 @@ func RegisterEndPoint(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		b, _ := json.Marshal(RegisterResponse{
 			Success: false,
+			Short:   "GENERAL_ERROR",
 		})
 		w.Write(b)
 		return
@@ -433,12 +442,19 @@ func DeleteAccountEndPoint(w http.ResponseWriter, r *http.Request) {
 	err = user.DeleteUser()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("internal server error"))
+		b, _ := json.Marshal(ErrorResponse{
+			Error: "internal server error",
+			Short: "GENERAL_ERROR",
+		})
+		w.Write(b)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("User has been removed"))
+	b, _ := json.Marshal(RegisterResponse{
+		Success: true,
+	})
+	w.Write(b)
 }
 
 func DeleteSessionsEndPoint(w http.ResponseWriter, r *http.Request) {
@@ -450,12 +466,19 @@ func DeleteSessionsEndPoint(w http.ResponseWriter, r *http.Request) {
 	err = user.DeleteSessions()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte("internal server error"))
+		b, _ := json.Marshal(ErrorResponse{
+			Error: "internal server error",
+			Short: "GENERAL_ERROR",
+		})
+		w.Write(b)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("All sessions have been removed"))
+	b, _ := json.Marshal(RegisterResponse{
+		Success: true,
+	})
+	w.Write(b)
 }
 
 func ForgotPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
@@ -465,7 +488,8 @@ func ForgotPasswordEndPoint(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		b, _ := json.Marshal(ErrorResponse{
-			Error: "user could not be found",
+			Error: "internal server error",
+			Short: "USER_NOT_FOUND",
 		})
 		w.Write(b)
 		return
@@ -582,6 +606,7 @@ func UpdateAccountEndPoint(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		b, _ := json.Marshal(RegisterResponse{
 			Success: false,
+			Short:   "GENERAL_ERROR",
 		})
 		w.Write(b)
 		return
@@ -596,6 +621,7 @@ func UpdateAccountEndPoint(w http.ResponseWriter, r *http.Request) {
 			b, _ := json.Marshal(RegisterResponse{
 				Success: false,
 				Error:   "same email",
+				Short:   "SAME_EMAIL",
 			})
 			w.Write(b)
 			return
@@ -609,6 +635,7 @@ func UpdateAccountEndPoint(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 			b, _ := json.Marshal(RegisterResponse{
 				Success: false,
+				Short:   "GENERAL_ERROR",
 			})
 			w.Write(b)
 			return

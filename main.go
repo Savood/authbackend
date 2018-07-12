@@ -5,6 +5,7 @@ import (
 	"log"
 	"git.dhbw.chd.cx/savood/authbackend/web"
 	"net/http"
+	"github.com/rs/cors"
 )
 
 func main() {
@@ -12,5 +13,14 @@ func main() {
 
 	router := web.NewRouter()
 
-	log.Fatal(http.ListenAndServe(":8080", router))
+	corsHandler := cors.New(cors.Options{
+		Debug:            false,
+		AllowedHeaders:   []string{"*"},
+		AllowedOrigins:   []string{"*"},
+		AllowCredentials: true,
+		AllowedMethods:   []string{},
+		MaxAge:           1000,
+	})
+
+	log.Fatal(http.ListenAndServe(":8080", corsHandler.Handler(router)))
 }

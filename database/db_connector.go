@@ -21,10 +21,6 @@ func ConnectDatabase() {
 		Key:    []string{"email"},
 		Unique: true,
 	})
-	db.C("users").EnsureIndex(mgo.Index{
-		Key:    []string{"username"},
-		Unique: true,
-	})
 
 	conn, err := amqp.Dial(os.Getenv("RABBITMQ_URL"))
 	if err != nil {
